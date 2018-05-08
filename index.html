@@ -1,0 +1,205 @@
+<!doctype html>
+<html>
+<head>
+    <title>Socket.IO chat</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font: 13px Helvetica, Arial;
+        }
+
+        .chat-from {
+            position: fixed;
+            bottom: 3px;
+            left: 20px;
+        }
+
+        .login-form {
+            text-align: center;
+            padding-top: 100px;
+        }
+
+        #message {
+            width: 90%;
+        }
+
+
+        .messages-list {
+            list-style-type: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .users-list {
+            padding-left: 20px;
+        }
+
+        .messages-list li {
+            padding: 5px 10px;
+        }
+
+        .messages-list li:nth-child(odd) {
+            background: #eee;
+        }
+
+        #chat_wrapper {
+            display: none;
+        }
+
+        .system {
+            color: darkgray;
+        }
+
+        .online {
+            font-weight: bold;
+            color: forestgreen;
+        }
+
+        .offline {
+            font-weight: bold;
+            color: darkred;
+        }
+
+    </style>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css"
+          integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+</head>
+<body>
+
+<div id="login_wrapper">
+    <form action="" class="login-form form-inline" id="login-form">
+        <input id="nickname" placeholder="nickname" class="form-control">
+        <input id="password" placeholder="password" type="password" class="form-control">
+        <button class="btn btn-primary">Войти</button>
+    </form>
+</div>
+
+<div id="chat_wrapper">
+    <div class="row">
+        <div class="col-md-8">
+            <ul class="messages-list"></ul>
+        </div>
+        <div class="col-md-4">
+            <ul class="users-list"></ul>
+        </div>
+    </div>
+
+
+    <form action="" class="chat-from form-inline" id="chat-from">
+        <div class="form-group">
+            <label class="checkbox"> Лично <input type="checkbox" class="form-control" id="is_private"></label>
+        </div>
+        <div class="form-group">
+            <select id="users" class="form-control"></select>
+        </div>
+        <div class="form-group">
+            <input id="message"  class="form-control" autocomplete="off" placeholder="Message">
+        </div>
+        <div class="form-group">
+            <button class="btn btn-primary">Отправить</button>
+        </div>
+    </form>
+
+</div>
+
+</body>
+<script src="/socket.io/socket.io.js"></script>
+<script src="https://code.jquery.com/jquery-1.11.1.js"></script>
+<script>
+    $(function () {
+
+        const $chatWrapper = $('#chat_wrapper');
+        const $loginWrapper = $('#login_wrapper');
+        const $loginForm = $('#login-form');
+        const $nicknameInput = $('#nickname');
+        const $passwordInput = $('#password');
+        const $messageInput = $('#message');
+        const $massagesList = $('.messages-list');
+        const $usersList = $('.users-list');
+        const $usersSelect = $('#users');
+        const $privateCheckbox = $('#is_private');
+
+        let socket;
+
+        $loginForm.submit(function () {
+            if ($nicknameInput.val() && $passwordInput.val()) {
+                socket = io({
+                    query: {
+                        nickname: $nicknameInput.val(),
+                        password: $passwordInput.val()
+                    }
+                });
+
+                socket.on('errors', function (message) {
+                    console.log(message);
+                    socket.disconnect();
+                });
+
+                socket.on('success', function (message) {
+                    $loginWrapper.hide();
+                    $chatWrapper.show();
+
+                    $('#chat-from').submit(function () {
+
+                        socket.emit('chat', {
+                            message: $messageInput.val(),
+                            direct: $privateCheckbox.prop('checked'),
+                            to: $usersSelect.val()
+                        });
+                        $messageInput.val('');
+                        return false;
+                    });
+
+                    socket.on('chat', function (message) {
+                        $massagesList.append($('<li>').html(
+                            '<i>' + message.time + '</i> '
+                            + '<b>'
+                            + message.nickname
+                            + (message.to ? (message.direct ? ' лично ' : '') + ' для ' + message.to : '')
+                            + ':</b> '
+                            + message.message));
+                    });
+
+                    socket.on('system', function (msg) {
+                        $massagesList.append($('<li>').html(
+                            '<span class="system">'
+                            + msg
+                            + '</span>'));
+                    });
+
+                    socket.on('status', function (list) {
+                        $usersList.html('');
+                        $usersSelect.html('');
+                        $usersSelect.append(
+                            '<option value="">Всем</option>'
+                        );
+                        for (let [key, value] of Object.entries(list)) {
+                            $usersList.append(
+                                '<li class="' + (value ? 'online' : 'offline') + '">' + key + "</li>"
+                            );
+
+                            if (value) {
+                                $usersSelect.append(
+                                    '<option value="' + key + '">' + key + '</option>'
+                                );
+                            }
+
+                        }
+                    });
+                });
+
+            } else {
+                console.log('nickname and password required');
+            }
+            return false;
+        });
+
+
+    });
+</script>
+</html>
